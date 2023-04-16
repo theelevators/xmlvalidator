@@ -3,14 +3,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, Menu
 from lxml import etree
 import csv
+import json
+from model import XMLFile
 
 
 # Set schema files
-
-SCHEMAS = {
-    "6.7": "D:\Projects\WORK\PIES\PIES_6_7_(rev3)_XSD_20160915.xsd",
-    "7.1": "D:\Projects\WORK\PIES\PIES_7_1_r4_XSD.xsd"
-}
+schema_files = open(r"X:\Work\xmlvalidator\schemas.json")
+SCHEMAS = json.load(schema_files)
 
 ###### Set up gui theme and size ###########
 root = tk.Tk()
@@ -27,8 +26,7 @@ w = 400
 h = 250
 
 
-menubar = Menu(root, background=LBL_COLOR, activebackground=LBL_COLOR,
-               foreground=LBL_COLOR, activeforeground=LBL_COLOR, bg=LBL_COLOR)
+menubar = Menu(root)
 root.resizable(False, False)
 
 ws = root.winfo_screenwidth()
@@ -48,71 +46,7 @@ style.configure(
     "TLabelframe.Label", font=FONT, background=LBL_COLOR, color=BG_COLOR
 )
 
-
-def set_file(obj: dict) -> str:
-    file = filedialog.askopenfilename(filetypes=[("XML Files", "*.xml")])
-    file.replace("file:/", "")
-
-    if file == '':
-        if obj["file"] != '':
-            return f"File: \n {file}"
-        return "Open a file to begin."
-
-    obj["file"] = file
-    filemenu.entryconfig("Errors", state="disabled")
-    return f"File: \n {file}"
-
-
-def open_error_log(obj: dict) -> None:
-    if obj['errors'] == '':
-        return
-    os.startfile(obj['errors'])
-
-
-def validate_file(obj: dict) -> str:
-    valid = get_pies_version(obj)
-    if valid != True:
-        return valid
-    file_schema = etree.parse(obj["schema"])
-    xml_schema = etree.XMLSchema(file_schema)
-    xml_file = etree.parse(obj["file"])
-    file_name = obj["file"]
-    file_name = file_name.replace('.xml', '').replace(
-        'D:/Projects/WORK/PIES/', '')
-
-    try:
-        xml_schema.assertValid(xml_file)
-        obj['validated'] = True
-        return "Validation Complete. File has passed validation!"
-    except etree.DocumentInvalid:
-        obj['validated'] = False
-        errors = [[error.line, error.message]
-                  for error in xml_schema.error_log]
-        errors.insert(0, ["Line Number", "Error Message"])
-        with open(f'errors_{file_name}.csv', 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerows(errors)
-        filemenu.entryconfig("Errors", state="normal")
-        obj['errors'] = f"errors_{file_name}.csv"
-        return f"File failed schema validation. \n Please review the errors in: errors_{file_name}.csv"
-
-
-def get_pies_version(obj: dict) -> bool | str:
-    namespace = '{http://www.autocare.org}'
-    if obj['file'] == '':
-        return "Please enter a valid file."
-    try:
-        tree = etree.parse(obj['file'])
-    except etree.XMLSyntaxError as error:
-        return f"File failed validation on line: {error.lineno}. \n Error message: {error.msg}."
-    try:
-        root = tree.getroot()
-        pies = root.find(f"./{namespace}Header/{namespace}PIESVersion").text
-        obj["schema"] = SCHEMAS[pies]
-        return True
-    except Exception as error:
-        return f"Unable to validate file due to invalid XML structure and/or namespace."
-
+xml_file = XMLFile()
 
 message = tk.Label(
     root,
@@ -123,19 +57,92 @@ message.pack(fill="both", expand=True)
 message.propagate(False)
 message.configure(wraplength=375)
 
-# Set up holder for files
-obj = {"file": "", "schema": "", "validated": False, "importLog": [],
-       "records": [], "prepared": False, "parsed": False, "completed": False, "errors": ""}
-
 filemenu = Menu(menubar, background=LBL_COLOR, tearoff=0)
 filemenu.add_command(
-    label="Open", command=lambda: message.config(text=set_file(obj)))
-filemenu.add_command(label="Errors", command=lambda: open_error_log(obj))
+    label="Open", command=lambda: message.config(text=set_file(xml_file)))
+
+filemenu.add_command(
+    label="Validate", command=lambda: message.config(text=validate_file(xml_file)))
+filemenu.add_command(
+    label="Errors", command=lambda: generate_error_log(xml_file))
 filemenu.entryconfig("Errors", state="disabled")
+filemenu.entryconfig("Validate", state="disabled")
 filemenu.add_command(label="Exit", command=root.quit)
+
 menubar.add_cascade(label="File", menu=filemenu)
-menubar.add_command(
-    label="Validate", command=lambda: message.config(text=validate_file(obj)))
+
+
+def set_file(xml: XMLFile) -> str:
+    file = filedialog.askopenfile(filetypes=[("XML Files", "*.xml")])
+    if file.name == None:
+        if xml.file == None:
+            return "Open a file to begin."
+        return f"Current File: \n {xml.file.name}"
+    xml.set_file(file)
+    filemenu.entryconfig("Errors", state="disabled")
+    filemenu.entryconfig("Validate", state="normal")
+    return f"Current File: \n {xml.file.name}"
+
+
+def define_schema(xml: XMLFile):
+    try:
+        xml.set_schema(SCHEMAS[xml.version])
+        print(xml.schema)
+        return True
+    except Exception as error:
+        return f"Schema for PIES Version {error} not found. \n Please contact a Senior or Supervisor."
+
+
+def get_pies_version(xml: XMLFile) -> bool | str:
+    if xml == None:
+        return "Please enter a valid file."
+    try:
+        tree = etree.parse(xml.file.name)
+    except etree.XMLSyntaxError as error:
+        return f"File failed validation on line: {error.lineno}. \n Error message: {error.msg}."
+    try:
+        root = tree.getroot()
+        pies_version = root.find(
+            f"./{xml.namespace}Header/{xml.namespace}PIESVersion").text
+        xml.set_version(pies_version)
+    except Exception as error:
+        return f"Unable to validate file due to invalid XML structure and/or namespace."
+
+    return define_schema(xml)
+
+
+def validate_file(xml: XMLFile) -> str:
+    valid = get_pies_version(xml)
+    if valid != True:
+        return valid
+    file_schema = etree.parse(xml.schema)
+    xml_schema = etree.XMLSchema(file_schema)
+    xml_file = etree.parse(xml.file.name)
+    try:
+        xml_schema.assertValid(xml_file)
+        xml.set_state(True)
+        return "Validation Complete. File has passed validation!"
+    except etree.DocumentInvalid:
+        xml.set_state(False)
+        errors = [[error.line, error.message]
+                  for error in xml_schema.error_log]
+        errors.insert(0, ["Line Number", "Error Message"])
+        xml.error_log = errors
+        filemenu.entryconfig("Errors", state="normal")
+        return f"File failed schema validation. \n Generate report to review errors."
+
+
+def generate_error_log(xml: XMLFile):
+    save_path = filedialog.asksaveasfilename(
+        filetypes=[("CSV Files", "*.csv")], defaultextension='.csv')
+    if save_path == '':
+        return
+    save_path = f"{save_path}.csv"
+    with open(save_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(xml.error_log)
+    os.startfile(save_path)
+
 
 root.config(menu=menubar)
 
