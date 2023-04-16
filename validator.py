@@ -4,6 +4,13 @@ from lxml import etree
 
 
 ## Set schema files
+
+SCHEMAS = {
+    "6.7": "D:\Projects\WORK\PIES\PIES_6_7_(rev3)_XSD_20160915.xsd",
+    "7.1": "D:\Projects\WORK\PIES\PIES_7_1_r4_XSD.xsd"
+}
+
+
 ###### Set up gui theme and size ###########
 root = tk.Tk()
 
@@ -38,43 +45,43 @@ style.configure(
     "TLabelframe.Label", font=FONT, background=LBL_COLOR, color=BG_COLOR
 )
 
-
-def set_schema(obj: dict) -> str:
-
-    schema = filedialog.askopenfilename(filetypes=[("Schema Files", "*.xsd")])
-    schema.replace("file:/", "")
-    obj["schema"] = schema
-
-    return f"Selected Schema: {schema}"
-
 def set_file(obj: dict) -> str:
     file = filedialog.askopenfilename(filetypes=[("XML Files", "*.xml")])
     file.replace("file:/", "")
     obj["file"] = file
-
     return f"Selected File: {file}"
 
 def validate_file(obj: dict) -> str:
-    if obj['file'] == '' or obj['schema'] == '':
-        return "Please enter a valid file and schema."
+    valid = get_pies_version(obj)
+    if valid != True:
+        return valid
     file_schema = etree.parse(obj["schema"])
-    schema = etree.XMLSchema(file_schema)
-    parser = etree.XMLParser(schema=schema)
+    xml_schema = etree.XMLSchema(file_schema)
+    xml_file = etree.parse(obj["file"])
     try:
-        etree.parse(obj["file"], parser)
+        xml_schema.assertValid(xml_file)
         obj['validated'] = True
         return "Validation Complete. File has passed validation!"
     except etree.DocumentInvalid:
-        errors = ''
-        for error in schema.error_log:
-            errors += "  Line {}: {}".format(error.line, error.message)
         obj['validated'] = False
-        return errors
-    except etree.XMLSyntaxError as e:
-        obj['validated'] = False
-        return e.msg
-
-
+        for error in xml_schema.error_log:
+            print("  Line {}: {}".format(error.line, error.message))
+   
+def get_pies_version(obj: dict)-> bool|str:
+    namespace = '{http://www.autocare.org}'
+    if obj['file'] == '':
+        return "Please enter a valid file."
+    try:
+        tree = etree.parse(obj['file'])
+    except etree.XMLSyntaxError as error:
+        return f"File failed validation on line: {error.lineno}. \n Error message: {error.msg}."
+    try:
+        root = tree.getroot()
+        pies = root.find(f"./{namespace}Header/{namespace}PIESVersion").text
+        obj["schema"] = SCHEMAS[pies]
+        return True
+    except Exception as error:
+        return f"Unable to validate file due to invalid XML structure and/or namespace."
 
 message_frame = ttk.Labelframe(root, text="Validation Message")
 message_frame.pack(fill="both", expand=True, side="left")
@@ -104,15 +111,6 @@ file_button = tk.Button(
     background=TXT_COLOR,
 )
 file_button.pack(side="top")
-schema_button = tk.Button(
-    button_frame,
-    text="Load XSD",
-    command=lambda: message.config(text=set_schema(obj)),
-    height=3,
-    width=14,
-    background=TXT_COLOR,
-)
-schema_button.pack(side="top")
 validation_button = tk.Button(
     button_frame,
     text="Validate XML",
