@@ -3,6 +3,7 @@ from tkinter import ttk, filedialog
 from lxml import etree
 
 
+## Set schema files
 ###### Set up gui theme and size ###########
 root = tk.Tk()
 
