@@ -8,14 +8,14 @@ from model import XMLFile
 
 
 # Set schema files
-CONFIG_FILE = os.environ['PIES_SCHEMAS_PATH']
-SCHEMA_FILES = open(CONFIG_FILE)
-SCHEMAS = json.load(SCHEMA_FILES)
+SCHEMAS = json.load(open(os.environ['PIES_SCHEMAS_PATH']))
+
+
 
 
 ###### Set up gui theme and size ###########
 root = tk.Tk()
-
+xml_file = XMLFile()
 style = ttk.Style()
 
 BG_COLOR = "#299617"
@@ -54,29 +54,36 @@ message_frame.pack(fill="both", expand=True)
 button_frame = tk.Frame(root, background=LBL_COLOR)
 button_frame.pack(fill="both", expand=True)
 
-
 message = tk.Label(
     message_frame,
     text="Open a file to begin.",
     background=LBL_COLOR,
 )
 message.pack(fill="both",  side='bottom')
-xml_file = XMLFile()
 report_button = ttk.Button(button_frame, command=lambda: generate_error_log(xml_file), text="Save And Open Error Report")
 
 message.configure(wraplength=375)
 
+filemenu = Menu(menubar, background=LBL_COLOR, tearoff=0)
 
+filemenu.add_command(
+    label="Open", command=lambda: main(xml_file))
 
-def main():
-    loaded = set_file(xml_file)
+filemenu.add_command(label="Exit", command=root.quit)
+
+menubar.add_cascade(label="File", menu=filemenu)
+
+root.config(menu=menubar)
+
+def main(xml: XMLFile):
+    loaded = set_file(xml)
     if not loaded:
         return
-    has_pies = get_pies_version(xml_file) 
+    has_pies = get_pies_version(xml) 
     
     if not has_pies:
         return
-    validate_file(xml_file)
+    validate_file(xml)
 
 def set_file(xml: XMLFile)->bool:
     if xml.valid == True:
@@ -138,7 +145,7 @@ def validate_file(xml: XMLFile) -> None:
         return
 
 
-def generate_error_log(xml: XMLFile):
+def generate_error_log(xml: XMLFile)-> None:
     save_path = filedialog.asksaveasfilename(
         filetypes=[("CSV Files", "*.csv")], defaultextension='.csv')
     if save_path == '':
@@ -148,15 +155,7 @@ def generate_error_log(xml: XMLFile):
         writer.writerows(xml.error_log)
     os.startfile(save_path)
     
-filemenu = Menu(menubar, background=LBL_COLOR, tearoff=0)
-filemenu.add_command(
-    label="Open", command=main)
 
-filemenu.add_command(label="Exit", command=root.quit)
-
-menubar.add_cascade(label="File", menu=filemenu)
-
-root.config(menu=menubar)
 
 if __name__ == "__main__":
 
