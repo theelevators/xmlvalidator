@@ -2,6 +2,7 @@ class XMLFile():
 
     def __init__(self):
         self.namespace = '{http://www.autocare.org}'
+        self.valid = False
 
     def set_file(self, file):
         self.file = file
