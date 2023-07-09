@@ -11,7 +11,7 @@ When the program is able to get the schema, it will then do a file validation ag
 
 ![example_1](https://user-images.githubusercontent.com/121846740/232383218-a4099f32-482d-4073-b89d-3b080550579f.png)
 ![example_2](https://user-images.githubusercontent.com/121846740/232383220-ebc9c8eb-c168-4767-b7c0-b514a47121b7.png)
-![example_3](https://user-images.githubusercontent.com/121846740/232383221-8c829398-11cd-47b6-82c4-3ee2dce0fb5d.png)
+
 
 If any errors are generated while validating against the schema, a message will appear to the user.
 This message will contain a small detail about what caused the file to fail validation as well as the line where it happened.
